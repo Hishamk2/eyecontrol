@@ -4,6 +4,12 @@ let cursorSpeed = 10; // pixels
 
 let fakeCursor = null;
 
+// video stuff
+let videoElement = null;
+let canvasElement = null;
+let canvasCtx = null;
+let webcamRunning = false;
+
 // just a div
 function createFakeCursor() {
   fakeCursor = document.createElement('div');
@@ -25,6 +31,62 @@ fakeCursor.style.transition = 'none'; // No animation for instant movement
   
   console.log('init fake cursor:', cursorX, cursorY);
 }
+
+function createVideoElements() {
+  videoElement = document.createElement('video');
+  videoElement.style.display = 'none'; // hidden, just for stream
+  document.body.appendChild(videoElement);
+
+  canvasElement = document.createElement('canvas');
+  canvasElement.style.position = 'fixed';
+  canvasElement.style.top = '10px';
+  canvasElement.style.right = '10px';
+  canvasElement.style.width = '320px';
+  canvasElement.style.height = '240px';
+  canvasElement.style.zIndex = '999998';
+  // canvasElement.style.transform = 'scaleX(-1)'; // mirror cuz webcam or not
+  document.body.appendChild(canvasElement);
+  
+  canvasCtx = canvasElement.getContext('2d');
+}
+
+async function startWebcam() {
+  if (webcamRunning) return;
+  
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      video: { width: 640, height: 480 } 
+    });
+    
+    videoElement.srcObject = stream;
+    videoElement.addEventListener('loadeddata', () => {
+      webcamRunning = true;
+      // canvasElement.width = videoElement.videoWidth;
+      // canvasElement.height = videoElement.videoHeight;
+      // console.log('webcam on:', videoElement.videoWidth, videoElement.videoHeight);
+      renderFrame();
+    });
+    
+    await videoElement.play();
+  } catch (err) {
+    console.error('webcam fail:', err);
+  }
+}
+
+function renderFrame() {
+  if (!webcamRunning) return;
+  
+  // draw current frame
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.scale(-1, 1);
+  canvasCtx.drawImage(videoElement, -canvasElement.width, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.restore();
+  
+  // keep rendering
+  requestAnimationFrame(renderFrame);
+}
+
 
 function updateCursorPosition() {
   if (fakeCursor) {
@@ -138,6 +200,8 @@ function initializeFakeCursor() {
   console.log('...strat');
   
   createFakeCursor();
+  createVideoElements();
+  startWebcam();
   
   document.addEventListener('keydown', handleKeyboardInput);
 }
