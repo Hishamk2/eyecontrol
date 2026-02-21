@@ -50,6 +50,47 @@ function createVideoElements() {
   canvasCtx = canvasElement.getContext('2d');
 }
 
+function injectFaceTracker() {
+  const scriptTag = document.createElement('script');
+  scriptTag.src = chrome.runtime.getURL('inject.js');
+  scriptTag.id = 'face-inject';
+  document.documentElement.appendChild(scriptTag);
+  
+  console.log('face tracker injected');
+}
+
+function handleMessageFromPage(event) {
+  if (!event.data || !event.data.type) return;
+  
+  if (event.data.type === 'FACE_STATUS') {
+    console.log('face status:', event.data.status);
+    
+    if (event.data.error) {
+      console.error('face error:', event.data.error);
+    }
+  }
+  
+  if (event.data.type === 'FACE_DATA') {
+    if (!event.data.data) return;
+    
+    const irisXNormalized = event.data.data.irisX;
+    const irisYNormalized = event.data.data.irisY;
+    
+    // normalized 0-1, need to scale to canvas size
+    const irisXCanvas = irisXNormalized * canvasElement.width;
+    const irisYCanvas = irisYNormalized * canvasElement.height;
+    
+    console.log('iris at:', irisXCanvas.toFixed(1), irisYCanvas.toFixed(1));
+    
+    // red dot for testing
+    // canvasCtx.fillStyle = 'red';
+    // canvasCtx.beginPath();
+    // canvasCtx.arc(irisXCanvas, irisYCanvas, 5, 0, 2 * Math.PI);
+    // canvasCtx.fill();
+  }
+}
+
+
 async function startWebcam() {
   if (webcamRunning) return;
   
@@ -201,8 +242,10 @@ function initializeFakeCursor() {
   
   createFakeCursor();
   createVideoElements();
+  injectFaceTracker();
   startWebcam();
   
+  window.addEventListener('message', handleMessageFromPage);
   document.addEventListener('keydown', handleKeyboardInput);
 }
 
