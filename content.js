@@ -15,7 +15,9 @@ function createFakeCursor() {
   fakeCursor.style.backgroundColor = 'green';
   fakeCursor.style.borderRadius = '50%'; // circle
   fakeCursor.style.zIndex = '999999'; // yes
-//   fakeCursor.style.pointerEvents = 'none'; // maybe, depends if want my actual mouse to do stuff begind wherever the fake cursor is
+  fakeCursor.style.pointerEvents = 'none'; // maybe, depends if want my actual mouse to do stuff begind wherever the fake cursor is
+fakeCursor.style.transition = 'none'; // No animation for instant movement
+
   
   document.body.appendChild(fakeCursor);
   
@@ -72,6 +74,39 @@ function moveCursorRight() {
   updateCursorPosition();
 }
 
+
+function getFakeCursorCenter() {
+  if (!fakeCursor) return null;
+
+  const rect = fakeCursor.getBoundingClientRect();
+
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2
+  };
+}
+
+
+
+function simulateClick() {
+  const pos = getFakeCursorCenter();
+  if (!pos) return;
+
+  const { x, y } = pos;
+  const target = document.elementFromPoint(x, y);
+  if (!target) return;
+
+  console.log(target.tagName, target);
+
+  // doesnt work for select elemnts since not trusted
+  // can work around by cycling through the elements but not for now
+  if (target instanceof HTMLElement) {
+    target.focus();
+    target.click();
+  }
+}
+
+
 function handleKeyboardInput(event) {
   
   if (event.key === 'ArrowUp') {
@@ -88,6 +123,12 @@ function handleKeyboardInput(event) {
   } 
   else if (event.key === 'ArrowRight') {
     moveCursorRight();
+    event.preventDefault(); // o/w page scrolls
+  }
+  
+  // Spacebar triggers a click at the cursor position
+  else if (event.key === ' ' || event.key === 'Spacebar') {
+    simulateClick();
     event.preventDefault(); // o/w page scrolls
   }
 }
