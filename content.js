@@ -63,7 +63,18 @@ const BLINK_CLICK_COOLDOWN = 800;
 // covers the eyelid movement that distorts iris position
 const BLINK_FREEZE_WINDOW = 120;
 
-// ========================
+
+
+// how close to the edge (px) before scrolling kicks in
+const SCROLL_ZONE_SIZE = 100;
+
+// max scroll speed in px per frame at the very edge
+const SCROLL_MAX_SPEED = 15;
+
+
+let scrollSpeed = 0;
+
+
 
 // blink state tracking
 let eyesClosed = false;
@@ -296,6 +307,12 @@ function updateCursorPosition() {
     fakeCursor.style.left = (cursorX - 10) + 'px';
     fakeCursor.style.top = (cursorY - 10) + 'px';
   }
+  
+
+  
+  updateScrollSpeed();
+
+  // updateScrollSpeed();
 }
 
 function moveCursorUp() {
@@ -393,6 +410,26 @@ function handleKeyboardInput(event) {
 }
 
 
+function updateScrollSpeed() {
+  // how far into the scroll zone the cursor is, 0 = edge of zone, 1 = screen edge
+  if (cursorY < SCROLL_ZONE_SIZE) {
+    const depth = 1 - (cursorY / SCROLL_ZONE_SIZE);
+    scrollSpeed = -depth * SCROLL_MAX_SPEED; // scroll up
+  } else if (cursorY > window.innerHeight - SCROLL_ZONE_SIZE) {
+    const depth = 1 - ((window.innerHeight - cursorY) / SCROLL_ZONE_SIZE);
+    scrollSpeed = depth * SCROLL_MAX_SPEED; // scroll down
+  } else {
+    scrollSpeed = 0;
+  }
+}
+
+function scrollLoop() {
+  if (scrollSpeed !== 0) {
+    window.scrollBy(0, scrollSpeed);
+  }
+  requestAnimationFrame(scrollLoop);
+}
+
 function initializeFakeCursor() {
   console.log('...strat');
   
@@ -403,6 +440,8 @@ function initializeFakeCursor() {
   
   window.addEventListener('message', handleMessageFromPage);
   document.addEventListener('keydown', handleKeyboardInput);
+  
+  requestAnimationFrame(scrollLoop);
 }
 
 if (document.readyState === 'loading') {
