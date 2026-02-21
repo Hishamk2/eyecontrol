@@ -22,6 +22,10 @@
     }
   ],
   "permissions": [
-    "activeTab"
-  ]
+    "activeTab",
+    "debugger"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
 }

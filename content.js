@@ -40,6 +40,39 @@ const SENSITIVITY_Y = 1.0;
 // helps reduce jitter, try 0.3-0.7
 const SMOOTHING = 0.3;
 
+// how often the cursor position updates in ms
+// 16 = ~60fps, 33 = ~30fps, 100 = 10fps
+const CURSOR_UPDATE_INTERVAL = 16;
+
+
+
+
+// EAR below this = eyes closed
+const BLINK_THRESHOLD = 0.2;
+
+// max ms between two blinks to count as double blink
+const DOUBLE_BLINK_WINDOW = 500;
+
+// min ms a blink must last to not be noise
+const BLINK_MIN_DURATION = 50;
+
+// cooldown after a double-blink click so it doesnt rapid fire
+const BLINK_CLICK_COOLDOWN = 800;
+
+// ms to freeze cursor before AND after a blink
+// covers the eyelid movement that distorts iris position
+const BLINK_FREEZE_WINDOW = 120;
+
+// ========================
+
+// blink state tracking
+let eyesClosed = false;
+let blinkCount = 0;
+let lastBlinkTime = 0;
+let lastClickTime = 0;
+let lastCursorUpdate = 0;
+let blinkFreezeUntil = 0; // timestamp until which cursor should be frozen
+
 
 
 
@@ -138,6 +171,16 @@ function handleMessageFromPage(event) {
       return; // don't move cursor until calibrated
     }
     
+    // blink detection
+    const earLeft = event.data.data.earLeft;
+    const earRight = event.data.data.earRight;
+    const averageEAR = (earLeft + earRight) / 2;
+    
+    detectDoubleBlink(averageEAR);
+    
+    // freeze cursor during blink + a window before/after to cover eyelid distortion
+    if (Date.now() < blinkFreezeUntil) return;
+    
     // how far the iris is from YOUR center
     const irisOffsetX = irisXCanvas - irisCenterX;
     const irisOffsetY = irisYCanvas - irisCenterY;
@@ -159,7 +202,52 @@ function handleMessageFromPage(event) {
     cursorX = Math.max(0, Math.min(window.innerWidth,  cursorX));
     cursorY = Math.max(0, Math.min(window.innerHeight, cursorY));
     
+    // throttle how often cursor actually moves
+    const now = Date.now();
+    if (now - lastCursorUpdate < CURSOR_UPDATE_INTERVAL) return;
+    lastCursorUpdate = now;
+    
     updateCursorPosition();
+  }
+}
+
+function detectDoubleBlink(ear) {
+  const now = Date.now();
+  
+  if (ear < BLINK_THRESHOLD) {
+    // eyes closing — freeze cursor immediately so eyelid movement doesn't shift it
+    blinkFreezeUntil = now + BLINK_FREEZE_WINDOW;
+    
+    if (!eyesClosed) {
+      eyesClosed = true;
+    }
+  } else {
+    // eyes just opened = one blink completed
+    if (eyesClosed) {
+      eyesClosed = false;
+      
+      // freeze for a bit after opening too — eyelid still moving up
+      blinkFreezeUntil = now + BLINK_FREEZE_WINDOW;
+      
+      const timeSinceLastBlink = now - lastBlinkTime;
+      
+      if (timeSinceLastBlink < DOUBLE_BLINK_WINDOW) {
+        // second blink within window = double blink!
+        blinkCount = 0;
+        
+        // dont click if we just clicked
+        if (now - lastClickTime > BLINK_CLICK_COOLDOWN) {
+          lastClickTime = now;
+          console.log('double blink -> click');
+          simulateClick();
+        }
+      } else {
+        // first blink, start counting
+        blinkCount = 1;
+      }
+      
+      lastBlinkTime = now;
+    }
   }
 }
 
@@ -269,17 +357,12 @@ function simulateClick() {
   if (!pos) return;
 
   const { x, y } = pos;
-  const target = document.elementFromPoint(x, y);
-  if (!target) return;
 
-  console.log(target.tagName, target);
+  // element.click() doesnt work for file dialogs etc when called from a blink/message handler
+  // background uses chrome.debugger to send a real trusted mouse event instead
+  chrome.runtime.sendMessage({ action: 'simulateClick', x, y });
 
-  // doesnt work for select elemnts since not trusted
-  // can work around by cycling through the elements but not for now
-  if (target instanceof HTMLElement) {
-    target.focus();
-    target.click();
-  }
+  console.log('click at:', Math.round(x), Math.round(y));
 }
 
 

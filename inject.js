@@ -110,12 +110,34 @@
     const averageIrisX = (leftIrisLandmark.x + rightIrisLandmark.x) / 2;
     const averageIrisY = (leftIrisLandmark.y + rightIrisLandmark.y) / 2;
 
+    // eye aspect ratio for blink detection
+    // vertical distance / horizontal distance for each eye
+    // goes near 0 when eye is closed
+    const leftEAR = eyeAspectRatio(faceLandmarks, 'left');
+    const rightEAR = eyeAspectRatio(faceLandmarks, 'right');
+
     sendMessageToContentScript('FACE_DATA', {
       data: {
         irisX: averageIrisX,
-        irisY: averageIrisY
+        irisY: averageIrisY,
+        earLeft: leftEAR,
+        earRight: rightEAR
       }
     });
+  }
+
+  function eyeAspectRatio(landmarks, side) {
+    // vertical landmarks (top and bottom of eye)
+    const top    = side === 'left' ? landmarks[159] : landmarks[386];
+    const bottom = side === 'left' ? landmarks[145] : landmarks[374];
+    // horizontal landmarks (inner and outer corners)
+    const inner  = side === 'left' ? landmarks[33]  : landmarks[362];
+    const outer  = side === 'left' ? landmarks[133] : landmarks[263];
+
+    const verticalDist   = Math.hypot(top.x - bottom.x, top.y - bottom.y);
+    const horizontalDist = Math.hypot(inner.x - outer.x, inner.y - outer.y);
+
+    return verticalDist / (horizontalDist + 0.000001); // avoid /0
   }
 
   function sendMessageToContentScript(messageType, payload) {
