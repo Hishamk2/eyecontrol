@@ -10,6 +10,41 @@ let canvasElement = null;
 let canvasCtx = null;
 let webcamRunning = false;
 
+// set from netural position on startup 
+// so be aware
+let irisCenterX = null;
+let irisCenterY = null;
+let isCalibrated = false;
+
+// collect first few frames to average out a stable center
+const CALIBRATION_FRAMES = 30;
+let calibrationSamples = [];
+
+
+
+// changing
+
+
+// how far iris moves from center in canvas pixels (measured)
+// x has more range than y cuzzzzz idk
+const IRIS_RANGE_X = 13;
+const IRIS_RANGE_Y = 3;  // small, nodding barely moves iris vertically
+
+// multiplier on top of the range mapping
+// 1.0 = edge of iris range maps to edge of screen
+// higher = more sensitive, less head movement needed
+const SENSITIVITY_X = 1.0;
+const SENSITIVITY_Y = 1.0;
+
+// smoothing factor: 0 = no smoothing, 1 = no movement
+// helps reduce jitter, try 0.3-0.7
+const SMOOTHING = 0.3;
+
+
+
+
+
+
 // just a div
 function createFakeCursor() {
   fakeCursor = document.createElement('div');
@@ -79,14 +114,52 @@ function handleMessageFromPage(event) {
     // normalized 0-1, need to scale to canvas size
     const irisXCanvas = irisXNormalized * canvasElement.width;
     const irisYCanvas = irisYNormalized * canvasElement.height;
+
+    console.log("iris canvas coords:", irisXCanvas, irisYCanvas);
     
-    console.log('iris at:', irisXCanvas.toFixed(1), irisYCanvas.toFixed(1));
+    // first N frames: collect samples to figure out where "center" actually is
+    if (!isCalibrated) {
+      calibrationSamples.push({ x: irisXCanvas, y: irisYCanvas });
+      
+      if (calibrationSamples.length >= CALIBRATION_FRAMES) {
+        // average all samples to get a stable center
+        let totalX = 0;
+        let totalY = 0;
+        for (let i = 0; i < calibrationSamples.length; i++) {
+          totalX += calibrationSamples[i].x;
+          totalY += calibrationSamples[i].y;
+        }
+        irisCenterX = totalX / calibrationSamples.length;
+        irisCenterY = totalY / calibrationSamples.length;
+        isCalibrated = true;
+        
+        console.log('calibrated center:', irisCenterX.toFixed(1), irisCenterY.toFixed(1));
+      }
+      return; // don't move cursor until calibrated
+    }
     
-    // red dot for testing
-    // canvasCtx.fillStyle = 'red';
-    // canvasCtx.beginPath();
-    // canvasCtx.arc(irisXCanvas, irisYCanvas, 5, 0, 2 * Math.PI);
-    // canvasCtx.fill();
+    // how far the iris is from YOUR center
+    const irisOffsetX = irisXCanvas - irisCenterX;
+    const irisOffsetY = irisYCanvas - irisCenterY;
+    
+    // normalize to -1 to 1 using per-axis range
+    const normalizedOffsetX = irisOffsetX / IRIS_RANGE_X;
+    const normalizedOffsetY = irisOffsetY / IRIS_RANGE_Y;
+    
+    // map iris position to screen position
+    // negate x because 
+    const targetX = (window.innerWidth  / 2) + (-normalizedOffsetX * SENSITIVITY_X * window.innerWidth  / 2);
+    const targetY = (window.innerHeight / 2) + ( normalizedOffsetY * SENSITIVITY_Y * window.innerHeight / 2);
+    
+    // smooth it out so cursor doesnt jump around
+    cursorX = cursorX + (targetX - cursorX) * (1 - SMOOTHING);
+    cursorY = cursorY + (targetY - cursorY) * (1 - SMOOTHING);
+    
+    // clamp to screen
+    cursorX = Math.max(0, Math.min(window.innerWidth,  cursorX));
+    cursorY = Math.max(0, Math.min(window.innerHeight, cursorY));
+    
+    updateCursorPosition();
   }
 }
 
