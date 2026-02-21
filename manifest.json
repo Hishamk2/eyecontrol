@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "eye control",
+  "version": "1.0.0",
+  "description": "eye control extension",
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "eye control"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}
